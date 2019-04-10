@@ -5,8 +5,10 @@ from setuptools import setup
 
 install_requires = [
     'torch>=1.0.1',
-    'gym>=0.10.9',
-    'numpy>=1.13.3'
+    'Cython>=0.29.6',
+    'gym>=0.12.1',
+    'numpy>=1.16.2',
+    'tqdm>=4.31.1'
 ]
 
 setup(
