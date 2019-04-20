@@ -1,5 +1,5 @@
 # coding: utf-8
-
+import os
 import gym
 from gym import spaces
 from gym.utils import seeding
@@ -7,6 +7,7 @@ import numpy as np
 import csv
 import math
 from tqdm import tqdm
+import pickle
 
 import time
 
@@ -103,7 +104,15 @@ class MpdrlEnv(gym.Env):
     self.DT = 0.1 #seconds between state updates
 
     self.robot_radius = 0.30 #[m]
-    self.collision_map = make_collision_map(self.MAP,int(self.robot_radius/self.MAP_RESOLUTION))
+    collision_map_file_path = os.path.join(os.path.dirname(__file__),'collision_map.txt')
+    if os.path.exists(collision_map_file_path):
+        f = open(collision_map_file_path,'rb')
+        self.collision_map = pickle.load(f)
+    else:
+        self.collision_map = make_collision_map(self.MAP,int(self.robot_radius/self.MAP_RESOLUTION))
+        f = open(collision_map_file_path,'wb')
+        pickle.dump(self.collision_map, f)
+
 
     #action
     self.max_linear_velocity_x = 1.0
@@ -116,7 +125,7 @@ class MpdrlEnv(gym.Env):
     self.action_low = np.array([self.min_linear_velocity_x, self.min_angular_velocity])
     self.action_high = np.array([self.max_linear_velocity_x, self.max_angular_velocity])
 
-    self.action_space = spaces.Box(self.action_low, self.action_high)#, dtype = np.float32)
+    self.action_space = spaces.Box(self.action_low, self.action_high)
 
     #observation
     self.min_range = 0.0
@@ -138,7 +147,7 @@ class MpdrlEnv(gym.Env):
     self.observation_high[self.NUM_LIDAR] = self.max_distance
     self.observation_high[self.NUM_LIDAR+1] = 1.
     self.observation_high[self.NUM_LIDAR+2] = 1.
-    self.observation_space = spaces.Box(self.observation_low, self.observation_high)#, dtype = np.float32)
+    self.observation_space = spaces.Box(self.observation_low, self.observation_high)
 
     self.viewer = None
     self.seed()
@@ -275,7 +284,7 @@ class MpdrlEnv(gym.Env):
     elif (not self.is_movable(self.pose)) or self.is_collision(self.pose):
       reward = -5.0
     else:
-      reward = (self.pre_dis-self.dis)*0.15
+      reward = (self.pre_dis-self.dis)*0.3
     #reward += -0.01 * cabs(angle_diff(self.pose[2], atan2(self.target[1] - self.pose[1], self.target[0] - self.pose[0])))
     if cabs(self.pre_dis-self.dis) < 1e-6:
       reward -=0.05
