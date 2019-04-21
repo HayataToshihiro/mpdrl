@@ -10,3 +10,8 @@ pip install -e .
 cd mpdrl/envs/
 ./compile.sh
 ```
+## how to use
+```
+cd example
+python train.py
+```
