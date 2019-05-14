@@ -8,5 +8,5 @@ __pycache__
 *.so
 build
 *.txt
-logs/
+garbage/
 models/
