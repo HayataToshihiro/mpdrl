@@ -11,5 +11,6 @@ from mpdrl.envs.mpdrl import MpdrlEnv
 
 register(
   id='mpdrl-v0',
-  entry_point='mpdrl.envs.mpdrl:MpdrlEnv'
+  entry_point='mpdrl.envs.mpdrl:MpdrlEnv',
+  max_episode_steps=500,
 )
