@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import tensorboardX as tbx
 import gym
 
 from mpdrl.envs import MpdrlEnv
@@ -37,23 +38,23 @@ parser.add_argument('--record', action='store_true',
 parser.add_argument('--seed', type=int, default=256)
 parser.add_argument('--max_epis', type=int,
                     default=1000000, help='Number of episodes to run.')
-parser.add_argument('--num_parallel', type=int, default=4,
+parser.add_argument('--num_parallel', type=int, default=8,
                     help='Number of processes to sample.')
 parser.add_argument('--cuda', type=int, default=-1, help='cuda device number.')
 parser.add_argument('--data_parallel', action='store_true', default=False,
                     help='If True, inference is done in parallel on gpus.')
 
-parser.add_argument('--max_steps_per_iter', type=int, default=10000,
+parser.add_argument('--max_steps_per_iter', type=int, default=500,
                     help='Number of steps to use in an iteration.')
-parser.add_argument('--epoch_per_iter', type=int, default=10,
+parser.add_argument('--epoch_per_iter', type=int, default=3,
                     help='Number of epoch in an iteration')
-parser.add_argument('--batch_size', type=int, default=256)
-parser.add_argument('--pol_lr', type=float, default=3e-4,
+parser.add_argument('--batch_size', type=int, default=32)
+parser.add_argument('--pol_lr', type=float, default=1e-3,
                     help='Policy learning rate')
-parser.add_argument('--vf_lr', type=float, default=3e-4,
+parser.add_argument('--vf_lr', type=float, default=1e-3,
                     help='Value function learning rate')
 
-parser.add_argument('--max_grad_norm', type=float, default=10,
+parser.add_argument('--max_grad_norm', type=float, default=5,
                     help='Value of maximum gradient norm.')
 
 parser.add_argument('--ppo_type', type=str,
@@ -62,9 +63,9 @@ parser.add_argument('--ppo_type', type=str,
 parser.add_argument('--clip_param', type=float, default=0.2,
                     help='Value of clipping liklihood ratio.')
 
-parser.add_argument('--gamma', type=float, default=0.995,
+parser.add_argument('--gamma', type=float, default=0.99,
                     help='Discount factor.')
-parser.add_argument('--lam', type=float, default=1,
+parser.add_argument('--lam', type=float, default=0.95,
                     help='Tradeoff value of bias variance.')
 args = parser.parse_args()
 
@@ -87,6 +88,8 @@ set_device(device)
 
 score_file = os.path.join(args.log, 'progress.csv')
 logger.add_tabular_output(score_file)
+
+writer = tbx.SummaryWriter()
 
 env = GymEnv(args.env_name)
 env.env.seed(args.seed)
@@ -141,6 +144,7 @@ while args.max_epis > total_epi:
                           rewards,
                           plot_title=args.env_name)
 
+    writer.add_scalar('rewards', mean_rew, total_epi)
     if mean_rew > max_rew:
         torch.save(pol.state_dict(), os.path.join(
             args.log, 'models', 'pol_max.pkl'))
@@ -162,3 +166,4 @@ while args.max_epis > total_epi:
         args.log, 'models', 'optim_vf_last.pkl'))
     del traj
 del sampler
+writer.close()
