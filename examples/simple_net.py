@@ -22,7 +22,7 @@ def weight_init(m):
 
 
 class PolNet(nn.Module):
-    def __init__(self, observation_space, action_space, h1=200, h2=100, deterministic=False):
+    def __init__(self, observation_space, action_space, h1=512, h2=512, h3= 512, deterministic=False):
         super(PolNet, self).__init__()
 
         self.deterministic = deterministic
@@ -38,11 +38,13 @@ class PolNet(nn.Module):
 
         self.fc1 = nn.Linear(observation_space.shape[0], h1)
         self.fc2 = nn.Linear(h1, h2)
+        self.fc3 = nn.Linear(h2, h3)
         self.fc1.apply(weight_init)
         self.fc2.apply(weight_init)
+        self.fc3.apply(weight_init)
 
         if not self.discrete:
-            self.mean_layer = nn.Linear(h2, action_space.shape[0])
+            self.mean_layer = nn.Linear(h3, action_space.shape[0])
             if not self.deterministic:
                 self.log_std_param = nn.Parameter(
                     torch.randn(action_space.shape[0])*1e-10 - 1)
@@ -50,15 +52,16 @@ class PolNet(nn.Module):
         else:
             if self.multi:
                 self.output_layers = nn.ModuleList(
-                    [nn.Linear(h2, vec) for vec in action_space.nvec])
+                    [nn.Linear(h3, vec) for vec in action_space.nvec])
                 list(map(lambda x: x.apply(mini_weight_init), self.output_layers))
             else:
-                self.output_layer = nn.Linear(h2, action_space.n)
+                self.output_layer = nn.Linear(h3, action_space.n)
                 self.output_layer.apply(mini_weight_init)
 
     def forward(self, ob):
         h = F.relu(self.fc1(ob))
         h = F.relu(self.fc2(h))
+        h = F.relu(self.fc3(h))
         if not self.discrete:
             mean = torch.tanh(self.mean_layer(h))
             if not self.deterministic:
