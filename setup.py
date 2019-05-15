@@ -6,10 +6,11 @@ from setuptools import setup
 install_requires = [
     'torch==1.0.1',
     'Cython>=0.29.6',
-    'gym>=0.10.5',
+    'gym==0.10.5',
     'numpy>=1.16.2',
     'tqdm>=4.32.1',
     'machina-rl==0.2.0',
+    'tensorboardX==1.6',
 ]
 
 setup(
