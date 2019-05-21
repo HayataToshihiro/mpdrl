@@ -1,6 +1,3 @@
-"""
-An example of Proximal Policy Gradient.
-"""
 import argparse
 import json
 import os
@@ -60,9 +57,6 @@ parser.add_argument('--rnn_batch_size', type=int, default=8,
                     help='Number of sequences included in batch of rnn.')
 parser.add_argument('--max_grad_norm', type=float, default=5,
                     help='Value of maximum gradient norm.')
-
-parser.add_argument('--ppo_type', type=str,
-                    choices=['clip', 'kl'], default='clip', help='Type of Proximal Policy Optimization.')
 
 parser.add_argument('--clip_param', type=float, default=0.2,
                     help='Value of clipping liklihood ratio.')
