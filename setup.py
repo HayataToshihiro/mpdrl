@@ -4,11 +4,13 @@ from setuptools import setup
 
 
 install_requires = [
-    'tensorflow-gpu==1.13.1',
+    'torch==1.0.1',
     'Cython>=0.29.6',
-    'gym>=0.12.1',
+    'gym==0.10.5',
     'numpy>=1.16.2',
-    'tqdm>=4.31.1'
+    'tqdm>=4.32.1',
+    'machina-rl==0.2.0',
+    'tensorboardX==1.6',
 ]
 
 setup(
