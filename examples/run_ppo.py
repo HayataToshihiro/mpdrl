@@ -26,7 +26,7 @@ from machina.samplers import EpiSampler
 from machina import logger
 from machina.utils import measure, set_device
 
-from simple_net import PolNet, VNet
+from simple_net import PolNet, VNet, PolNetLSTM, VNetLSTM
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--log', type=str, default='garbage',
@@ -54,6 +54,10 @@ parser.add_argument('--pol_lr', type=float, default=1e-3,
 parser.add_argument('--vf_lr', type=float, default=1e-3,
                     help='Value function learning rate')
 
+parser.add_argument('--rnn', action='store_true',
+                    default=False, help='If True, network is reccurent.')
+parser.add_argument('--rnn_batch_size', type=int, default=8,
+                    help='Number of sequences included in batch of rnn.')
 parser.add_argument('--max_grad_norm', type=float, default=5,
                     help='Value of maximum gradient norm.')
 
@@ -97,13 +101,21 @@ env.env.seed(args.seed)
 observation_space = env.observation_space
 action_space = env.action_space
 
-pol_net = PolNet(observation_space, action_space)
-pol = GaussianPol(observation_space, action_space, pol_net,
-                    data_parallel=args.data_parallel, parallel_dim=0)
+if args.rnn:
+    pol_net = PolNetLSTM(observation_space, action_space,
+                         h_size=256, cell_size=256)
+else:
+    pol_net = PolNet(observation_space, action_space)
 
-vf_net = VNet(observation_space)
-vf = DeterministicSVfunc(observation_space, vf_net,
-                         data_parallel=args.data_parallel, parallel_dim=0)
+pol = GaussianPol(observation_space, action_space, pol_net, args.rnn,
+                    data_parallel=args.data_parallel, parallel_dim=1 if args.rnn else 0)
+
+if args.rnn:
+    vf_net = VNetLSTM(observation_space, h_size=256, cell_size=256)
+else:
+    vf_net = VNet(observation_space)
+vf = DeterministicSVfunc(observation_space, vf_net, args.rnn,
+                         data_parallel=args.data_parallel, parallel_dim=1 if args.rnn else 0)
 
 sampler = EpiSampler(env, pol, num_parallel=args.num_parallel, seed=args.seed)
 
@@ -132,7 +144,7 @@ while args.max_epis > total_epi:
             vf.dp_run = True
 
         result_dict = ppo_clip.train(traj=traj, pol=pol, vf=vf, clip_param=args.clip_param,
-                                        optim_pol=optim_pol, optim_vf=optim_vf, epoch=args.epoch_per_iter, batch_size=args.batch_size, max_grad_norm=args.max_grad_norm)
+                                        optim_pol=optim_pol, optim_vf=optim_vf, epoch=args.epoch_per_iter, batch_size=args.batch_size if not args.rnn else args.rnn_batch_size, max_grad_norm=args.max_grad_norm)
 
     total_epi += traj.num_epi
     step = traj.num_step
