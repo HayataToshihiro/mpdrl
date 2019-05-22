@@ -44,7 +44,7 @@ for epi in range(args.max_epis):
     for step in range(args.max_steps):
         env.render()
         ac_real, ac, a_i = best_pol.deterministic_ac_real(torch.tensor(o, dtype=torch.float))
-        ac_real = ac_real.reshape(best_pol.ac_space.shape)
+        ac_real = ac_real.reshape(best_pol.action_space.shape)
         next_o, r, done, e_i = env.step(np.array(ac_real))
         epi_r += r
         if done:
