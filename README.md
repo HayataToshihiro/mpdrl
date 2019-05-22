@@ -1,25 +1,31 @@
-# mpdrl
+# Motion Planning with Deep Reinforcement Learning
 
 ![ppo](assets/ppo.gif)
 
-## install
+## Installation
+mpdrl can be installed from source code.
 ```
-git clone https://github.com/Jumpei-Arima/mpdrl
+git clone https://github.com/Jumpei-Arima/mpdrl.git
 cd mpdrl
 pip install -e .
 ```
-## compile env
+
+## Quick Start
+You first compile environment.
+
 ```
 cd envs/
 ./compile.sh
 ```
-## how to use
+
+And you can train agent.
+
 ```
 cd example
 python run_ppo.py
 ```
 
-if you want to check the learned policy,
+If you want to check the learned policy,
 ```
 python check_best_policy.py
 ```
