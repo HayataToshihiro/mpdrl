@@ -14,7 +14,7 @@ parser.add_argument('--model_path', type=str, default='garbage/models/pol_max.pk
 parser.add_argument('--env_name', type=str,
                     default='mpdrl-v0', help='Name of environment.')
 parser.add_argument('--max_epis', type=int,
-                    default=3, help='Number of episodes to run.')
+                    default=5, help='Number of episodes to run.')
 parser.add_argument('--max_steps', type=int,
                     default=500, help='Number of steps to run.')
 parser.add_argument('--rnn', action='store_true',
@@ -37,14 +37,17 @@ best_path = args.model_path
 best_pol = GaussianPol(observation_space, action_space, pol_net, args.rnn)
 best_pol.load_state_dict(torch.load(best_path))
 
-done = False
-o = env.reset()
-for _ in range(args.max_epis):
+for epi in range(args.max_epis):
+    done = False
+    o = env.reset()
+    epi_r = 0.0
     for step in range(args.max_steps):
         env.render()
         ac_real, ac, a_i = best_pol.deterministic_ac_real(torch.tensor(o, dtype=torch.float))
         ac_real = ac_real.reshape(best_pol.ac_space.shape)
         next_o, r, done, e_i = env.step(np.array(ac_real))
+        epi_r += r
         if done:
+            print("Episode %d : Steps %d : reward %f" % (epi+1, step+1, epi_r))
             break
         o = next_o
