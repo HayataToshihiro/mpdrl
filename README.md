@@ -1,4 +1,5 @@
 # Motion Planning with Deep Reinforcement Learning
+[![Python Version](https://img.shields.io/pypi/pyversions/Django.svg)](https://github.com/Jumpei-Arima/mpdrl)
 
 ![ppo](assets/ppo.gif)
 
