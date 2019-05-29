@@ -132,8 +132,7 @@ class MpdrlEnv(gym.Env):
         self.max_range = 10.0
         self.min_distance = 0.0
         self.max_distance = sqrt(2) * self.WORLD_SIZE
-        self.NUM_LIDAR = 36 
-        self.NUM_KERNEL = 20
+        self.NUM_LIDAR = 720
         self.NUM_TARGET = 3
         self.MAX_ANGLE = 0.5*math.pi
         self.ANGLE_INCREMENT = self.MAX_ANGLE * 2.0 / self.NUM_LIDAR
@@ -314,16 +313,10 @@ class MpdrlEnv(gym.Env):
         cdef int i, j, _start, _end
         cdef double angle, theta, a_n
         cdef np.ndarray observation = np.empty(self.observation_space.shape[0], dtype=DTYPE)
-        a_n = self.ANGLE_INCREMENT / (float)(self.NUM_KERNEL)
         #LIDAR
         for i in range(self.NUM_LIDAR):
-            lidar = []
-            _start = i*self.NUM_KERNEL
-            _end = (i+1)*self.NUM_KERNEL-1
-            for j in range(_start, _end):
-                angle = j * a_n -self.MAX_ANGLE
-                lidar.append(self.raycasting(self.pose,angle))
-            observation[i] = np.amin(lidar)
+            angle = i * self.ANGLE_INCREMENT -self.MAX_ANGLE
+            observation[i] = self.raycasting(self.pose,angle)
         #pose
         observation[self.NUM_LIDAR] = sqrt((self.target[0]-self.pose[0])*(self.target[0]-self.pose[0]) + (self.target[1]-self.pose[1])*(self.target[1]-self.pose[1]))
         theta = atan2((self.target[1]-self.pose[1]),(self.target[0]-self.pose[0]))
