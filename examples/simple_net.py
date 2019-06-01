@@ -4,6 +4,7 @@ from torch.nn.init import kaiming_uniform_, uniform_
 import torch.nn.functional as F
 import gym
 
+from machina.envs import flatten_to_dict
 
 def mini_weight_init(m):
     if m.__class__.__name__ == 'Linear':
@@ -16,6 +17,17 @@ def weight_init(m):
         m.weight.data.copy_(kaiming_uniform_(m.weight.data))
         m.bias.data.fill_(0)
 
+def initialize_weight(modules):
+    for m in modules:
+        if isinstance(m, nn.Conv2d):
+            nn.init.normal_(m.weight, 0.0, 0.01)
+            if m.bias is not None:
+                nn.init.normal_(m.bias, 0.0, 0.01)
+        elif isinstance(m, nn.BatchNorm2d):
+            nn.init.normal_(m.weight, 0.0, 0.01)
+            nn.init.normal_(m.bias, 0.0, 0.01)
+        elif isinstance(m, nn.ModuleList):
+            initialize_weight(m)
 
 class PolNet(nn.Module):
     def __init__(self, observation_space, action_space, h1=512, h2=512, h3= 512, deterministic=False):
@@ -32,7 +44,7 @@ class PolNet(nn.Module):
             else:
                 self.multi = False
 
-        self.fc1 = nn.Linear(observation_space.shape[0], h1)
+        self.fc1 = nn.Linear(723, h1)
         self.fc2 = nn.Linear(h1, h2)
         self.fc3 = nn.Linear(h2, h3)
         self.fc1.apply(weight_init)
@@ -75,7 +87,7 @@ class PolNet(nn.Module):
 class VNet(nn.Module):
     def __init__(self, observation_space, h1=200, h2=100):
         super(VNet, self).__init__()
-        self.fc1 = nn.Linear(observation_space.shape[0], h1)
+        self.fc1 = nn.Linear(723, h1)
         self.fc2 = nn.Linear(h1, h2)
         self.output_layer = nn.Linear(h2, 1)
         self.apply(weight_init)
@@ -101,7 +113,7 @@ class PolNetLSTM(nn.Module):
             else:
                 self.multi = False
 
-        self.input_layer = nn.Linear(observation_space.shape[0], self.h_size)
+        self.input_layer = nn.Linear(723, self.h_size)
         self.cell = nn.LSTMCell(self.h_size, hidden_size=self.cell_size)
         if not self.discrete:
             self.mean_layer = nn.Linear(self.cell_size, action_space.shape[0])
@@ -156,7 +168,7 @@ class VNetLSTM(nn.Module):
         self.cell_size = cell_size
         self.rnn = True
 
-        self.input_layer = nn.Linear(observation_space.shape[0], self.h_size)
+        self.input_layer = nn.Linear(723, self.h_size)
         self.cell = nn.LSTMCell(self.h_size, hidden_size=self.cell_size)
         self.output_layer = nn.Linear(self.cell_size, 1)
 
@@ -184,3 +196,114 @@ class VNetLSTM(nn.Module):
         outs = self.output_layer(hiddens)
 
         return outs, hs
+
+class PolNetConv(nn.Module):
+    def __init__(self, observation_space, action_space, h1=512, h2=512, h3= 512, deterministic=False):
+        super(PolNetConv, self).__init__()
+
+        self.deterministic = deterministic
+
+        if isinstance(action_space, gym.spaces.Box):
+            self.discrete = False
+        else:
+            self.discrete = True
+            if isinstance(action_space, gym.spaces.MultiDiscrete):
+                self.multi = True
+            else:
+                self.multi = False
+        self.ob_space = observation_space
+        self.ac_space = action_space
+        lidar_space = self.ob_space.spaces['lidar']
+        target_dis_space = self.ob_space.spaces['target_dis']
+        target_orientation_space = self.ob_space.spaces['target_orientation']
+
+        self.CNN = nn.Sequential(
+            nn.Conv1d(lidar_space.shape[0], 32, kernel_size=5, stride=2),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.Conv1d(32, 32, kernel_size=3, stride=2),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+        )
+        self.fc1 = nn.Linear(5696, h1)
+        self.fc2 = nn.Linear(h1+3, h2)
+        self.fc3 = nn.Linear(h2, h3)
+
+
+        if not self.discrete:
+            self.mean_layer = nn.Linear(h3, action_space.shape[0])
+            if not self.deterministic:
+                self.log_std_param = nn.Parameter(
+                    torch.randn(action_space.shape[0])*1e-10 - 1)
+            self.mean_layer.apply(mini_weight_init)
+        else:
+            if self.multi:
+                self.output_layers = nn.ModuleList(
+                    [nn.Linear(h3, vec) for vec in action_space.nvec])
+                list(map(lambda x: x.apply(mini_weight_init), self.output_layers))
+            else:
+                self.output_layer = nn.Linear(h3, action_space.n)
+                self.output_layer.apply(mini_weight_init)
+        initialize_weight(self.modules())
+
+    def forward(self, ob):
+        dict_ob = flatten_to_dict(ob, self.ob_space)
+        lidar = dict_ob['lidar']
+        target_dis = dict_ob['target_dis']
+        target_orientation = dict_ob['target_orientation']
+
+        h = self.CNN(lidar)
+        h = h.view(-1, h.shape[1]*h.shape[2])
+        h = F.relu(self.fc1(h))
+        h = torch.cat([h, target_dis, target_orientation], dim=1)
+        h = F.relu(self.fc2(h))
+        h = F.relu(self.fc3(h))
+        if not self.discrete:
+            mean = torch.tanh(self.mean_layer(h))
+            if not self.deterministic:
+                log_std = self.log_std_param.expand_as(mean)
+                return mean, log_std
+            else:
+                return mean
+        else:
+            if self.multi:
+                return torch.cat([torch.softmax(ol(h), dim=-1).unsqueeze(-2) for ol in self.output_layers], dim=-2)
+            else:
+                return torch.softmax(self.output_layer(h), dim=-1)
+
+
+class VNetConv(nn.Module):
+    def __init__(self, observation_space, h1=200, h2=100):
+        super(VNetConv, self).__init__()
+
+        self.ob_space = observation_space
+        lidar_space = self.ob_space.spaces['lidar']
+        target_dis_space = self.ob_space.spaces['target_dis']
+        target_orientation_space = self.ob_space.spaces['target_orientation']
+
+        self.CNN = nn.Sequential(
+            nn.Conv1d(lidar_space.shape[0], 32, kernel_size=5, stride=2),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.Conv1d(32, 32, kernel_size=3, stride=2),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+        )
+        self.fc1 = nn.Linear(5696, h1)
+        self.fc2 = nn.Linear(h1+3, h2)
+        self.output_layer = nn.Linear(h2, 1)
+
+        initialize_weight(self.modules())
+
+    def forward(self, ob):
+        dict_ob = flatten_to_dict(ob, self.ob_space)
+        lidar = dict_ob['lidar']
+        target_dis = dict_ob['target_dis']
+        target_orientation = dict_ob['target_orientation']
+
+        h = self.CNN(lidar)
+        h = h.view(-1, h.shape[1]*h.shape[2])
+        h = F.relu(self.fc1(h))
+        h = torch.cat([h, target_dis, target_orientation], dim=1)
+        h = F.relu(self.fc2(h))
+        return self.output_layer(h)

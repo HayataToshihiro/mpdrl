@@ -137,15 +137,18 @@ class MpdrlEnv(gym.Env):
         self.MAX_ANGLE = 0.5*math.pi
         self.ANGLE_INCREMENT = self.MAX_ANGLE * 2.0 / self.NUM_LIDAR
         self.RANGE_MAX = 10
-        self.observation_low = np.full(self.NUM_LIDAR+self.NUM_TARGET, self.min_range)
-        self.observation_low[self.NUM_LIDAR] = self.min_distance
-        self.observation_low[self.NUM_LIDAR+1] = -1.
-        self.observation_low[self.NUM_LIDAR+2] = -1.
-        self.observation_high = np.full(self.NUM_LIDAR+self.NUM_TARGET, self.max_range)
-        self.observation_high[self.NUM_LIDAR] = self.max_distance
-        self.observation_high[self.NUM_LIDAR+1] = 1.
-        self.observation_high[self.NUM_LIDAR+2] = 1.
-        self.observation_space = spaces.Box(self.observation_low, self.observation_high)
+
+        self.observation_space = spaces.Dict(dict(
+            lidar=spaces.Box(
+                self.min_range,self.max_range,
+                shape=(1,self.NUM_LIDAR), dtype='float32'),
+            target_dis=spaces.Box(
+                self.min_distance, self.max_distance,
+                shape=(1,), dtype='float32'),
+            target_orientation=spaces.Box(
+                -1.0, 1.0,
+                shape=(2,), dtype='float32'),
+            ))
 
         self.viewer = None
         self.seed()
@@ -254,7 +257,7 @@ class MpdrlEnv(gym.Env):
         from gym.envs.classic_control import rendering
         #lidar
         for i in range(self.NUM_LIDAR):
-            lidar = rendering.make_capsule(scale*self.observation[i],1.0)
+            lidar = rendering.make_capsule(scale*self.observation['lidar'][i],1.0)
             lidar_trans = rendering.Transform()
             lidar_trans.set_translation(robot_x,robot_y)
             lidar_trans.set_rotation(self.pose[2] + i*self.ANGLE_INCREMENT - self.MAX_ANGLE)
@@ -312,17 +315,19 @@ class MpdrlEnv(gym.Env):
     def observe(self):
         cdef int i, j, _start, _end
         cdef double angle, theta, a_n
-        cdef np.ndarray observation = np.empty(self.observation_space.shape[0], dtype=DTYPE)
+        cdef np.ndarray lidar = np.empty(self.NUM_LIDAR, dtype=DTYPE)
         #LIDAR
         for i in range(self.NUM_LIDAR):
             angle = i * self.ANGLE_INCREMENT -self.MAX_ANGLE
-            observation[i] = self.raycasting(self.pose,angle)
+            lidar[i] = self.raycasting(self.pose,angle)
         #pose
-        observation[self.NUM_LIDAR] = sqrt((self.target[0]-self.pose[0])*(self.target[0]-self.pose[0]) + (self.target[1]-self.pose[1])*(self.target[1]-self.pose[1]))
+        dis = sqrt((self.target[0]-self.pose[0])*(self.target[0]-self.pose[0]) + (self.target[1]-self.pose[1])*(self.target[1]-self.pose[1]))
         theta = atan2((self.target[1]-self.pose[1]),(self.target[0]-self.pose[0]))
         theta = angle_diff(theta,self.pose[2])
-        observation[self.NUM_LIDAR+1] = sin(theta)
-        observation[self.NUM_LIDAR+2] = cos(theta)
+
+        observation = dict(lidar=lidar,
+                            target_dis=np.array([dis]),
+                            target_orientation=np.array([sin(theta),cos(theta)]))
         return observation
 
     def is_done(self):

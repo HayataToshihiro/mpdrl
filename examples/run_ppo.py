@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import tensorboardX as tbx
 import gym
+from gym.wrappers import FlattenDictWrapper
 
 from mpdrl.envs import MpdrlEnv
 
@@ -23,7 +24,7 @@ from machina.samplers import EpiSampler
 from machina import logger
 from machina.utils import measure, set_device
 
-from simple_net import PolNet, VNet, PolNetLSTM, VNetLSTM
+from simple_net import PolNet, VNet, PolNetLSTM, VNetLSTM, PolNetConv, VNetConv
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--log', type=str, default='garbage',
@@ -89,17 +90,21 @@ logger.add_tabular_output(score_file)
 
 writer = tbx.SummaryWriter()
 
-env = GymEnv(args.env_name)
+env = gym.make(args.env_name)
+dict_observation_space = env.observation_space
+dict_action_space = env.action_space
+env = FlattenDictWrapper(env, dict_observation_space.spaces.keys())
+env = GymEnv(env, log_dir=os.path.join(args.log, 'movie'), record_video=args.record)
 env.env.seed(args.seed)
 
 observation_space = env.observation_space
 action_space = env.action_space
 
 if args.rnn:
-    pol_net = PolNetLSTM(observation_space, action_space,
+    pol_net = PolNetLSTM(dict_observation_space, action_space,
                          h_size=256, cell_size=256)
 else:
-    pol_net = PolNet(observation_space, action_space)
+    pol_net = PolNetConv(dict_observation_space, action_space)
 
 pol = GaussianPol(observation_space, action_space, pol_net, args.rnn,
                     data_parallel=args.data_parallel, parallel_dim=1 if args.rnn else 0)
@@ -107,7 +112,7 @@ pol = GaussianPol(observation_space, action_space, pol_net, args.rnn,
 if args.rnn:
     vf_net = VNetLSTM(observation_space, h_size=256, cell_size=256)
 else:
-    vf_net = VNet(observation_space)
+    vf_net = VNetConv(dict_observation_space)
 vf = DeterministicSVfunc(observation_space, vf_net, args.rnn,
                          data_parallel=args.data_parallel, parallel_dim=1 if args.rnn else 0)
 
