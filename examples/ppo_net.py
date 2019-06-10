@@ -44,7 +44,14 @@ class PolNet(nn.Module):
             else:
                 self.multi = False
 
-        self.fc1 = nn.Linear(723, h1)
+        self.ob_space = observation_space
+        self.ac_space = action_space
+        self.lidar_space = self.ob_space.spaces['lidar']
+        target_dis_space = self.ob_space.spaces['target_dis']
+        target_orientation_space = self.ob_space.spaces['target_orientation']
+
+        self.pool = nn.AvgPool1d(36,stride=20)
+        self.fc1 = nn.Linear(38, h1)
         self.fc2 = nn.Linear(h1, h2)
         self.fc3 = nn.Linear(h2, h3)
         self.fc1.apply(weight_init)
@@ -67,7 +74,13 @@ class PolNet(nn.Module):
                 self.output_layer.apply(mini_weight_init)
 
     def forward(self, ob):
-        h = F.relu(self.fc1(ob))
+        dict_ob = flatten_to_dict(ob, self.ob_space)
+        lidar = dict_ob['lidar']
+        target_dis = dict_ob['target_dis']
+        target_orientation = dict_ob['target_orientation']
+        h = self.pool(lidar).view(-1,35)
+        h = torch.cat([h, target_dis, target_orientation], dim=1)
+        h = F.relu(self.fc1(h))
         h = F.relu(self.fc2(h))
         h = F.relu(self.fc3(h))
         if not self.discrete:
@@ -87,13 +100,27 @@ class PolNet(nn.Module):
 class VNet(nn.Module):
     def __init__(self, observation_space, h1=200, h2=100):
         super(VNet, self).__init__()
-        self.fc1 = nn.Linear(723, h1)
+
+        self.ob_space = observation_space
+        self.lidar_space = self.ob_space.spaces['lidar']
+        target_dis_space = self.ob_space.spaces['target_dis']
+        target_orientation_space = self.ob_space.spaces['target_orientation']
+
+        self.pool = nn.AvgPool1d(36,stride=20)
+        self.fc1 = nn.Linear(38, h1)
         self.fc2 = nn.Linear(h1, h2)
         self.output_layer = nn.Linear(h2, 1)
         self.apply(weight_init)
 
     def forward(self, ob):
-        h = F.relu(self.fc1(ob))
+        dict_ob = flatten_to_dict(ob, self.ob_space)
+        lidar = dict_ob['lidar']
+        target_dis = dict_ob['target_dis']
+        target_orientation = dict_ob['target_orientation']
+
+        h = self.pool(lidar).view(-1,35)
+        h = torch.cat([h, target_dis, target_orientation], dim=1)
+        h = F.relu(self.fc1(h))
         h = F.relu(self.fc2(h))
         return self.output_layer(h)
 
@@ -113,7 +140,7 @@ class PolNetLSTM(nn.Module):
             else:
                 self.multi = False
 
-        self.input_layer = nn.Linear(723, self.h_size)
+        self.input_layer = nn.Linear(39, self.h_size)
         self.cell = nn.LSTMCell(self.h_size, hidden_size=self.cell_size)
         if not self.discrete:
             self.mean_layer = nn.Linear(self.cell_size, action_space.shape[0])
@@ -168,7 +195,7 @@ class VNetLSTM(nn.Module):
         self.cell_size = cell_size
         self.rnn = True
 
-        self.input_layer = nn.Linear(723, self.h_size)
+        self.input_layer = nn.Linear(39, self.h_size)
         self.cell = nn.LSTMCell(self.h_size, hidden_size=self.cell_size)
         self.output_layer = nn.Linear(self.cell_size, 1)
 
@@ -213,12 +240,12 @@ class PolNetConv(nn.Module):
                 self.multi = False
         self.ob_space = observation_space
         self.ac_space = action_space
-        lidar_space = self.ob_space.spaces['lidar']
+        self.lidar_space = self.ob_space.spaces['lidar']
         target_dis_space = self.ob_space.spaces['target_dis']
         target_orientation_space = self.ob_space.spaces['target_orientation']
 
         self.CNN = nn.Sequential(
-            nn.Conv1d(lidar_space.shape[0], 32, kernel_size=5, stride=2),
+            nn.Conv1d(self.lidar_space.shape[0], 32, kernel_size=5, stride=2),
             nn.BatchNorm1d(32),
             nn.ReLU(),
             nn.Conv1d(32, 32, kernel_size=3, stride=2),
