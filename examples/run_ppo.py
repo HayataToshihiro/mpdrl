@@ -24,7 +24,7 @@ from machina.samplers import EpiSampler
 from machina import logger
 from machina.utils import measure, set_device
 
-from simple_net import PolNet, VNet, PolNetLSTM, VNetLSTM, PolNetConv, VNetConv
+from ppo_net import PolNet, VNet, PolNetLSTM, VNetLSTM, PolNetConv, VNetConv
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--log', type=str, default='garbage',
@@ -46,12 +46,14 @@ parser.add_argument('--max_steps_per_iter', type=int, default=500,
                     help='Number of steps to use in an iteration.')
 parser.add_argument('--epoch_per_iter', type=int, default=3,
                     help='Number of epoch in an iteration')
-parser.add_argument('--batch_size', type=int, default=32)
+parser.add_argument('--batch_size', type=int, default=256)
 parser.add_argument('--pol_lr', type=float, default=1e-3,
                     help='Policy learning rate')
 parser.add_argument('--vf_lr', type=float, default=1e-3,
                     help='Value function learning rate')
 
+parser.add_argument('--conv', action='store_true',
+                    default=False, help='If True, network is convolution.')
 parser.add_argument('--rnn', action='store_true',
                     default=False, help='If True, network is reccurent.')
 parser.add_argument('--rnn_batch_size', type=int, default=8,
@@ -103,16 +105,21 @@ action_space = env.action_space
 if args.rnn:
     pol_net = PolNetLSTM(dict_observation_space, action_space,
                          h_size=256, cell_size=256)
-else:
+elif args.conv:
     pol_net = PolNetConv(dict_observation_space, action_space)
+else:
+    pol_net = PolNet(dict_observation_space, action_space)
 
 pol = GaussianPol(observation_space, action_space, pol_net, args.rnn,
                     data_parallel=args.data_parallel, parallel_dim=1 if args.rnn else 0)
 
 if args.rnn:
     vf_net = VNetLSTM(observation_space, h_size=256, cell_size=256)
-else:
+elif args.conv:
     vf_net = VNetConv(dict_observation_space)
+else:
+    vf_net = VNet(dict_observation_space)
+
 vf = DeterministicSVfunc(observation_space, vf_net, args.rnn,
                          data_parallel=args.data_parallel, parallel_dim=1 if args.rnn else 0)
 
