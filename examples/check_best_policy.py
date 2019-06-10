@@ -1,12 +1,14 @@
 import argparse
 import numpy as np
 import gym
+from gym.wrappers import FlattenDictWrapper
 import torch
 import os
 import time
 from mpdrl.envs import MpdrlEnv
-from simple_net import PolNet, PolNetLSTM
+from ppo_net import PolNet, PolNetLSTM, PolNetConv
 from machina.pols import GaussianPol
+from machina.envs import GymEnv
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_path', type=str, default='garbage/models/pol_max.pkl',
@@ -22,8 +24,12 @@ parser.add_argument('--rnn', action='store_true',
 
 args = parser.parse_args()
 
-env_name = args.env_name
-env = gym.make(env_name)
+env = gym.make(args.env_name)
+dict_observation_space = env.observation_space
+dict_action_space = env.action_space
+env = FlattenDictWrapper(env, dict_observation_space.spaces.keys())
+env = GymEnv(env)
+env.env.seed(256)
 
 observation_space = env.observation_space
 action_space = env.action_space
@@ -31,7 +37,7 @@ action_space = env.action_space
 if args.rnn:
     pol_net = PolNetLSTM(observation_space, action_space, h_size=256, cell_size=256)
 else:
-    pol_net = PolNet(observation_space, action_space)
+    pol_net = PolNetConv(dict_observation_space, action_space)
 
 best_path = args.model_path
 best_pol = GaussianPol(observation_space, action_space, pol_net, args.rnn)
