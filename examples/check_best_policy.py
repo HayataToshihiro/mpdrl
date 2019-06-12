@@ -21,6 +21,8 @@ parser.add_argument('--max_steps', type=int,
                     default=500, help='Number of steps to run.')
 parser.add_argument('--rnn', action='store_true',
                     default=False, help='If True, network is reccurent.')
+parser.add_argument('--conv', action='store_true',
+                    default=False, help='If True, network is reccurent.')
 
 args = parser.parse_args()
 
@@ -36,8 +38,10 @@ action_space = env.action_space
 
 if args.rnn:
     pol_net = PolNetLSTM(observation_space, action_space, h_size=256, cell_size=256)
+elif args.conv:
+    pol_net = PolNetConv(observation_space, action_space, h_size=256, cell_size=256)
 else:
-    pol_net = PolNetConv(dict_observation_space, action_space)
+    pol_net = PolNet(dict_observation_space, action_space)
 
 best_path = args.model_path
 best_pol = GaussianPol(observation_space, action_space, pol_net, args.rnn)
