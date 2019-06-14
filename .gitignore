@@ -11,3 +11,4 @@ build
 garbage/
 models/
 runs/
+*.pkl
